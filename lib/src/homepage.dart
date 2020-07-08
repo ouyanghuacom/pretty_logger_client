@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'mdns_service/mdns_service.dart';
+import 'package:stream/stream.dart' show StreamServer;
+import 'package:socket_io/socket_io.dart' show Server, Socket;
 
 class Homepage extends StatefulWidget {
   Homepage({Key key}) : super(key: key);
@@ -7,80 +9,53 @@ class Homepage extends StatefulWidget {
   _HomepageState createState() => _HomepageState();
 }
 
-enum _Status { none, doing, done }
-
 class _HomepageState extends State<Homepage> {
-  _Status _status;
+  Server _server;
   @override
   void initState() {
     super.initState();
-    _status = _Status.none;
+    _start();
   }
 
-  void onPressed(BuildContext context) {
-    if (_status == _Status.doing) return;
-    if (_status == _Status.none) {
-      setState(() => _status = _Status.doing);
-      MdnsService.start('_pretty_logger_client._tcp', 34567).then(
-        (value) {
-          if (null == value) {
-            setState(() => _status = _Status.done);
-            return;
-          }
-          showDialog(
-            context: context,
-            child: AlertDialog(
-              content: Text(value),
-              actions: [
-                FlatButton(
-                  child: Text('GOT IT'),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              ],
-            ),
-          );
-          setState(() => _status = _Status.none);
-        },
-      );
-      return;
-    }
+  Future<void> _start() async {
+    MdnsService.stop().then((value) async {
+      int port = await startService();
+      await MdnsService.start('_pretty_logger._tcp', port);
+    });
+  }
+  Future<int> startService() async {
+    _server?.close();
+    final streamServer = StreamServer();
+    await streamServer.start(port: 0);
+    _server = Server();
+    _server.on('connect', (io) {
+      Socket client = io;
+      print('connect:${client.id} ${_remoteUrl(io)}');
+      client.on('disconnect', (io) {
+        print('disconnect:$io');
+      });
+      client.on('report', (data) {
+        print('report:$data');
+      });
+      client.join(client.id);
+    });
+    _server.listen(streamServer);
+    return _server.httpServer.channels[0].port;
+  }
 
-    if (_status == _Status.done) {
-      setState(() => _status = _Status.doing);
-      MdnsService.stop().then(
-        (value) {
-          if (null == value) {
-            setState(() => _status = _Status.none);
-            return;
-          }
-          showDialog(
-            context: context,
-            child: AlertDialog(
-              content: Text(value),
-              actions: [
-                FlatButton(
-                  child: Text('GOT IT'),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              ],
-            ),
-          );
-          setState(() => _status = _Status.done);
-        },
-      );
-    }
+  String _remoteUrl(Socket io) {
+    return '${io.request.connectionInfo.remoteAddress.address}:${io.request.connectionInfo.remotePort}';
   }
 
   @override
   Widget build(BuildContext context) {
     return AbsorbPointer(
-      absorbing: _status == _Status.doing,
+      absorbing: false,
       child: Scaffold(
         body: Center(
-
             child: FlatButton(
-          child: Text(_status.toString()),
-          onPressed: () => onPressed(context),
+          child: Text('none'),
+          onPressed: () => {},
         )),
       ),
     );

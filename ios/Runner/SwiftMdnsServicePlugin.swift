@@ -69,17 +69,21 @@ public class SwiftMdnsServicePlugin: NSObject, FlutterPlugin, NetServiceDelegate
     }
     
     public func netServiceDidStop(_ sender: NetService) {
+        NSLog("netServiceDidStop: \(sender)")
         didStop?(nil)
     }
     
     public func netServiceWillPublish(_ sender: NetService) {
+        NSLog("netServiceWillPublish: \(sender)")
     }
     
     public func netServiceDidPublish(_ sender: NetService) {
+        NSLog("netServiceDidPublish: \(sender)")
         didStart?(nil)
     }
     
     public func netService(_ sender: NetService, didNotPublish errorDict: [String : NSNumber]) {
+        NSLog("didNotPublish: \(sender) \(errorDict)")
         didStart?(String.init(data: try! JSONSerialization.data(withJSONObject: errorDict, options: .fragmentsAllowed), encoding: .utf8))
     }
     
